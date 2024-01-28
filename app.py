@@ -12,6 +12,7 @@ def hello_from_root():
 def hello():
     return jsonify(message='Hello from path!')
 
+app.register_blueprint(main_blueprint, url_prefix='/user')
 
 @app.errorhandler(404)
 def resource_not_found(e):

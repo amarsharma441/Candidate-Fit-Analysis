@@ -16,6 +16,22 @@ functions:
     events:
       - httpApi: '*'
 
+resources:
+  Resources:
+    IntelligentInterview:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: users
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
 plugins:
   - serverless-wsgi
   - serverless-python-requirements
