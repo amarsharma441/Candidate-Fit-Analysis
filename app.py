@@ -7,11 +7,6 @@ app = Flask(__name__)
 def hello_from_root():
     return jsonify(message='Hello from root!')
 
-
-@app.route("/hello")
-def hello():
-    return jsonify(message='Hello from path!')
-
 app.register_blueprint(main_blueprint, url_prefix='/user')
 
 @app.errorhandler(404)
