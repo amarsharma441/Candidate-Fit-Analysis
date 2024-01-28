@@ -1,0 +1,17 @@
+# def send_message(messages):
+#     response = OpenAI(api_key='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').chat.completions.create(
+#         messages=messages,
+#         model="gpt-3.5-turbo"
+#     )
+#     return response['choices'][0]['message']['content']
+
+# chat = [
+#     {"role": "system", "content": "You are a helpful assistant."},
+# ]
+
+# user_message = {"role": "user", "content": "Tell me a joke."}
+# chat.append(user_message)
+# assistant_response1 = send_message(chat)
+# user_message = {"role": "user", "content": "What's the capital of Canada?"}
+# chat.append(user_message)
+# assistant_response2 = send_message(chat)
