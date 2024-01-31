@@ -1,4 +1,4 @@
-service: intelligent-interview-system
+service: candidate-fit-analysis
 
 frameworkVersion: '3'
 
@@ -9,28 +9,76 @@ custom:
 provider:
   name: aws
   runtime: python3.11
-
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [ CandidateFitAnalysisDb, Arn ]
+  
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - Fn::Join:
+              - ''
+              - - Fn::GetAtt: [ TransientS3Bucket, Arn ]
+                - '/*'
+        
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:GetQueueUrl
+          Resource:
+          - Fn::GetAtt: [ QueryProcessingSQS, Arn ]
+            
 functions:
   api:
     handler: wsgi_handler.handler
     events:
       - httpApi: '*'
+  processQuery:
+    handler: Handlers/ProcessGPTQuery.processQuery
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ QueryProcessingSQS, Arn ]
+          batchSize: 1  
 
 resources:
   Resources:
-    IntelligentInterview:
+    CandidateFitAnalysisDb:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: users
+        TableName: job
         AttributeDefinitions:
-          - AttributeName: username
+          - AttributeName: id
             AttributeType: S
         KeySchema:
-          - AttributeName: username
+          - AttributeName: id
             KeyType: HASH
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+
+    TransientS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: cv-transient-data
+    
+    QueryProcessingSQS:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ChatGPTProcessQueue
 
 plugins:
   - serverless-wsgi
