@@ -7,41 +7,40 @@ from flask import Flask, Blueprint, request, jsonify
 from boto3.dynamodb.conditions import Key
 import json
 
-# Initialize DynamoDB client
-dynamodb = boto3.resource('dynamodb')
-job_table = dynamodb.Table('job')
-s3_client = boto3.client('s3')
-s3_bucket = 'cv-transient-data'
-sqsClient = boto3.client('sqs')
-sqsQueueName = 'ChatGPTProcessQueue'
+# Initialize AWS clients
+dynamodb = boto3.resource('dynamodb')  # DynamoDB resource
+jobTable = dynamodb.Table('job')  # DynamoDB table
+s3Client = boto3.client('s3')  # S3 client
+s3Bucket = 'cv-transient-data'  # S3 bucket name
+sqsClient = boto3.client('sqs')  # SQS client
+sqsQueueName = 'ChatGPTProcessQueue'  # SQS queue name
 
 def fetchChatGPTResponseByJobId(jobId):
-    print(jobId)
-    response = job_table.get_item(
-        Key={'id': jobId},
-        ProjectionExpression='resultS3Path'
-    )
-    print(response)
-    item = response.get('Item', {})
-    resultS3Path = item.get('resultS3Path', '')
-
-    if not resultS3Path:
-        return {
-            'statusCode': 404,
-            'body': json.dumps({'error': 'Result not found for the given jobId'})
-        }
-
-    # Extract S3 key
-    s3_key = resultS3Path.split(f'{s3_bucket}/')[1]
-
-    local_file_path = 'chatGPTResFile.txt'
-    
     try:
+        # Retrieve resultS3Path from DynamoDB
+        response = jobTable.get_item(
+            Key={'id': jobId},
+            ProjectionExpression='resultS3Path'
+        )
+        item = response.get('Item', {})
+        resultS3Path = item.get('resultS3Path', '')
+
+        if not resultS3Path:
+            return {
+                'statusCode': 404,
+                'body': json.dumps({'error': 'Result not found for the given jobId'})
+            }
+
+        # Extract S3 key
+        s3Key = resultS3Path.split(f'{s3Bucket}/')[1]
+
+        localFilePath = 'chatGPTResFile.txt'
+
         # Download file from S3
-        s3_client.download_file(s3_bucket, s3_key, local_file_path)
+        s3Client.download_file(s3Bucket, s3Key, localFilePath)
 
         # Read the contents of the file
-        with open(local_file_path, 'r', encoding='utf-8') as chatGPTResFile:
+        with open(localFilePath, 'r', encoding='utf-8') as chatGPTResFile:
             result = chatGPTResFile.read()
 
         return {
@@ -55,27 +54,49 @@ def fetchChatGPTResponseByJobId(jobId):
         }
     finally:
         # Remove the temporary local file
-        os.remove(local_file_path)
+        os.remove(localFilePath)
 
 
 def createCandidateFitAnalysisQuery(candidateCV, jobDescription):
+    # Strings for formatting the query
     startCandidateCV = "\nSTART CANDIDATE CV\n"
     endCandidateCV = "\nEND CANDIDATE CV\n"
     startJobDescription = "\nSTART JOB DESCRIPTION\n"
     endJobDescription = "\nEND JOB DESCRIPTION\n"
 
-    fitAnalysisQuestion = "Is this candidate fit for the job description mention above? Give detailed ananlysis"    
+    # Question for fit analysis
+    fitAnalysisQuestion = "Is this candidate fit for the job description mentioned above? Give detailed analysis"
+    
+    # Construct the query
     return startCandidateCV + str(candidateCV) + endCandidateCV + startJobDescription + str(jobDescription) + endJobDescription + fitAnalysisQuestion
+
+def createCandidateCompareAnalysisQuery(candidateCV1, candidateCV2, jobDescription):
+    # Strings for formatting the query
+    startCandidateCV = "\nSTART {candidate} CANDIDATE CV\n"
+    endCandidateCV = "\nEND {candidate} CANDIDATE CV\n"
+    startJobDescription = "\nSTART JOB DESCRIPTION\n"
+    endJobDescription = "\nEND JOB DESCRIPTION\n"
+
+    # Question for compare analysis
+    candidateCompareAnalysisQuestion = "Compare candidates against the provided job description? Give detailed analysis"
+
+    # Construct the query for both candidates
+    candidate1 = startCandidateCV.format(candidate="1st") + str(candidateCV1) + endCandidateCV.format(candidate="1st")
+    candidate2 = startCandidateCV.format(candidate="2nd") + str(candidateCV2) + endCandidateCV.format(candidate="2nd")
+
+    # Combine the queries
+    return candidate1 + candidate2 + startJobDescription + str(jobDescription) + endJobDescription + candidateCompareAnalysisQuestion
 
 
 def getChatGPTResponse(query):
     return query
 
 
-def extractTextFromPDF(pdf_file):
-    pdf_reader = PyPDF2.PdfReader(pdf_file)
+def extractTextFromPDF(pdfFile):
+    # Extract text from a PDF file
+    pdfReader = PyPDF2.PdfReader(pdfFile)
     text = ''
-    for page_number in range(len(pdf_reader.pages)):
-        page = pdf_reader.pages[page_number]
+    for pageNumber in range(len(pdfReader.pages)):
+        page = pdfReader.pages[pageNumber]
         text += page.extract_text()
     return text

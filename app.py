@@ -1,13 +1,13 @@
 from flask import Flask, jsonify, make_response
-from Handlers.CandidateFit import candidate_fit
+from Handlers.CandidateFit import candidateFit
 
 app = Flask(__name__)
 
 @app.route("/")
-def hello_from_root():
-    return jsonify(message='Hello from root!')
+def hello_from_app():
+    return jsonify(message='Hello from Candidate Fit Analysis System!')
 
-app.register_blueprint(candidate_fit, url_prefix='/candidateFit')
+app.register_blueprint(candidateFit, url_prefix='/candidateFit')
 
 @app.errorhandler(404)
 def resource_not_found(e):

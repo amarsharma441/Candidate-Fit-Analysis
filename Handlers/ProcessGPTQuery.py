@@ -1,67 +1,75 @@
 import boto3
-import base64
 import uuid
 import os
 import PyPDF2
-from flask import Flask, Blueprint, request, jsonify
+from flask import Flask, Blueprint, jsonify
 from boto3.dynamodb.conditions import Key
 from Utils.UtilFunctions import getChatGPTResponse
 import json
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
-job_table = dynamodb.Table('job')
-s3_client = boto3.client('s3')
-s3_bucket = 'cv-transient-data'
+jobTable = dynamodb.Table('job')
+
+# Initialize S3 client
+s3Client = boto3.client('s3')
+s3Bucket = 'cv-transient-data'
+
+# Initialize SQS client
 sqsClient = boto3.client('sqs')
 sqsQueueName = 'ChatGPTProcessQueue'
 
+
 def processQuery(event, context):
-    message_body = json.loads(event['Records'][0]['body'])
-    print(message_body)
-    print(type(message_body))
+    # Extract message body from the SQS event
+    messageBody = json.loads(event['Records'][0]['body'])
 
     try:
-        s3_key = message_body['chatGPTQueryS3Path'].split(f'{s3_bucket}/')[1]
-        local_file_path = '/tmp/chatGPTQueryFile.txt'
-        s3_client.download_file(s3_bucket, s3_key, local_file_path)
+        # Extract S3 key and download the ChatGPT query file
+        s3Key = messageBody['chatGPTQueryS3Path'].split(f'{s3Bucket}/')[1]
+        localFilePath = '/tmp/chatGPTQueryFile.txt'
+        s3Client.download_file(s3Bucket, s3Key, localFilePath)
 
-
-        with open(local_file_path, 'r', encoding='utf-8') as chatGPTQueryFile:
+        # Read ChatGPT query from the local file
+        with open(localFilePath, 'r', encoding='utf-8') as chatGPTQueryFile:
             chatGPTQuery = chatGPTQueryFile.read()
 
-        print(chatGPTQuery)
+        # Get ChatGPT response
         chatGPTResponse = getChatGPTResponse(chatGPTQuery)
 
-        with open('/tmp/chatGPTResponseFile.txt', 'w', encoding='utf-8') as chatGPTResponseFile:
+        # Write ChatGPT response to a local file
+        localResponseFilePath = '/tmp/chatGPTResponseFile.txt'
+        with open(localResponseFilePath, 'w', encoding='utf-8') as chatGPTResponseFile:
             chatGPTResponseFile.write(chatGPTResponse)
 
         # Save the file to S3
-        job_id = message_body['jobId']
-        s3_file_name = f"{job_id}_chatGPTResponse.txt"
-        s3_key = f"ChatGPTResponses/{s3_file_name}"
-        s3_client.upload_file('/tmp/chatGPTResponseFile.txt', s3_bucket, s3_key)
-        s3_result_path = f's3://{s3_bucket}/{s3_key}'
-        # Remove the temporary local files
-        print(s3_result_path)
-        os.remove(local_file_path)
-        os.remove('/tmp/chatGPTResponseFile.txt')
+        jobId = messageBody['jobId']
+        s3FileName = f"{jobId}_chatGPTResponse.txt"
+        s3Key = f"ChatGPTResponses/{s3FileName}"
+        s3Client.upload_file(localResponseFilePath, s3Bucket, s3Key)
+        s3ResultPath = f's3://{s3Bucket}/{s3Key}'
 
-        job_table.update_item(
-            Key={'id': message_body['jobId']},
+        # Remove the temporary local files
+        os.remove(localFilePath)
+        os.remove(localResponseFilePath)
+
+        # Update job status and result S3 path in DynamoDB
+        jobTable.update_item(
+            Key={'id': messageBody['jobId']},
             UpdateExpression='SET resultS3Path = :path, #status = :status',
-            ExpressionAttributeValues={':path': s3_result_path, ':status': 'completed'},
+            ExpressionAttributeValues={':path': s3ResultPath, ':status': 'completed'},
             ExpressionAttributeNames={'#status': 'status'}
         )
     except Exception as e:
+        # TODO: Handle the error or move the message to a dead-letter queue
         print(f"Todo: Handle the error or move the message to a dead-letter queue: {e}")
     finally:
-        sqsQueryURL =sqsClient.get_queue_url(QueueName=sqsQueueName)
+        # Get SQS queue URL and delete the processed message
+        sqsQueueUrl = sqsClient.get_queue_url(QueueName=sqsQueueName)['QueueUrl']
         sqsClient.delete_message(
-            QueueUrl=sqsQueryURL['QueueUrl'],
+            QueueUrl=sqsQueueUrl,
             ReceiptHandle=event['Records'][0]['receiptHandle']
         )
-
 
     return {
         'statusCode': 200,
