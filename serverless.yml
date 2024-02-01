@@ -3,15 +3,19 @@ service: candidate-fit-analysis
 frameworkVersion: '3'
 
 custom:
+  # Configuration for WSGI (Web Server Gateway Interface)
   wsgi:
     app: app.app
 
 provider:
+  # AWS provider configuration
   name: aws
   runtime: python3.11
   iam:
+    # IAM role permissions
     role:
       statements:
+        # Permissions for DynamoDB operations
         - Effect: Allow
           Action:
             - dynamodb:Query
@@ -22,6 +26,7 @@ provider:
           Resource:
             - Fn::GetAtt: [ CandidateFitAnalysisDb, Arn ]
   
+        # Permissions for S3 operations
         - Effect: Allow
           Action:
             - s3:PutObject
@@ -33,6 +38,7 @@ provider:
               - - Fn::GetAtt: [ TransientS3Bucket, Arn ]
                 - '/*'
         
+        # Permissions for SQS operations
         - Effect: Allow
           Action:
             - sqs:SendMessage
@@ -40,12 +46,15 @@ provider:
             - sqs:GetQueueUrl
           Resource:
           - Fn::GetAtt: [ QueryProcessingSQS, Arn ]
-            
+
 functions:
+  # HTTP API endpoint
   api:
     handler: wsgi_handler.handler
     events:
       - httpApi: '*'
+  
+  # Function to process GPT queries from SQS
   processQuery:
     handler: Handlers/ProcessGPTQuery.processQuery
     events:
@@ -56,6 +65,7 @@ functions:
 
 resources:
   Resources:
+    # DynamoDB table for storing candidate fit analysis data
     CandidateFitAnalysisDb:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -70,16 +80,19 @@ resources:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
 
+    # S3 bucket for storing transient data
     TransientS3Bucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: cv-transient-data
     
+    # SQS queue for processing GPT queries
     QueryProcessingSQS:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: ChatGPTProcessQueue
 
+# Serverless plugins
 plugins:
   - serverless-wsgi
   - serverless-python-requirements
