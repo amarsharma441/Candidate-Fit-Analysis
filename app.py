@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello_from_app():
-    return jsonify(message='Hello from Candidate Fit Analysis System!')
+    return jsonify(message='Hello from Candidate Fit Analysis App!')
 
 app.register_blueprint(candidateFit, url_prefix='/candidateFit')
 
