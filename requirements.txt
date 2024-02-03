@@ -1,6 +1,6 @@
 Flask==3.0.0
-Openai==1.6.1
 boto3==1.34.14
 Werkzeug==3.0.1
 markupsafe==2.1.3
 PyPDF2==3.0.1
+openai==1.10.0

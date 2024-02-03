@@ -6,6 +6,7 @@ import PyPDF2
 from flask import Flask, Blueprint, request, jsonify
 from boto3.dynamodb.conditions import Key
 import json
+from openai import OpenAI
 
 # Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')  # DynamoDB resource
@@ -34,7 +35,7 @@ def fetchChatGPTResponseByJobId(jobId):
         # Extract S3 key
         s3Key = resultS3Path.split(f'{s3Bucket}/')[1]
 
-        localFilePath = 'chatGPTResFile.txt'
+        localFilePath = '/tmp/chatGPTResFile.txt'
 
         # Download file from S3
         s3Client.download_file(s3Bucket, s3Key, localFilePath)
@@ -88,8 +89,19 @@ def createCandidateCompareAnalysisQuery(candidateCV1, candidateCV2, jobDescripti
     return candidate1 + candidate2 + startJobDescription + str(jobDescription) + endJobDescription + candidateCompareAnalysisQuestion
 
 
-def getChatGPTResponse(query):
-    return query
+def getChatGPTResponse(queryText):
+    # Initialize OpenAI
+    openAIClient = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    response = client.chat.completions.create(
+    messages=[
+            {
+                "role": "user",
+                "content": f"{queryText}",
+            }
+        ],
+        model="gpt-3.5",
+    )
+    return response
 
 
 def extractTextFromPDF(pdfFile):
