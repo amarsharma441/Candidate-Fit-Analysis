@@ -66,7 +66,7 @@ def createCandidateFitAnalysisQuery(candidateCV, jobDescription):
     endJobDescription = "\nEND JOB DESCRIPTION\n"
 
     # Question for fit analysis
-    fitAnalysisQuestion = "Is this candidate fit for the job description mentioned above? Give detailed analysis"
+    fitAnalysisQuestion = "Is this candidate fit for the job description mentioned above? Provide detailed analysis"
     
     # Construct the query
     return startCandidateCV + str(candidateCV) + endCandidateCV + startJobDescription + str(jobDescription) + endJobDescription + fitAnalysisQuestion
@@ -79,7 +79,7 @@ def createCandidateCompareAnalysisQuery(candidateCV1, candidateCV2, jobDescripti
     endJobDescription = "\nEND JOB DESCRIPTION\n"
 
     # Question for compare analysis
-    candidateCompareAnalysisQuestion = "Compare candidates against the provided job description? Give detailed analysis"
+    candidateCompareAnalysisQuestion = "Compare candidates against the provided job description. Provide detailed analysis"
 
     # Construct the query for both candidates
     candidate1 = startCandidateCV.format(candidate="1st") + str(candidateCV1) + endCandidateCV.format(candidate="1st")
