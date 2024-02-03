@@ -1,0 +1,11 @@
+TransientBucketIAM:
+  Effect: Allow
+  Action:
+    - s3:PutObject
+    - s3:GetObject
+    - s3:DeleteObject
+  Resource:
+    - Fn::Join:
+      - ''
+      - - Fn::GetAtt: [ TransientBucket, Arn ]
+        - '/*'

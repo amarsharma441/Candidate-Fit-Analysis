@@ -1,0 +1,8 @@
+QueryProcessingQueueIAM:
+  Effect: Allow
+  Action:
+    - sqs:SendMessage
+    - sqs:ReceiveMessage
+    - sqs:GetQueueUrl
+  Resource:
+    - Fn::GetAtt: [ QueryProcessingQueue, Arn ]

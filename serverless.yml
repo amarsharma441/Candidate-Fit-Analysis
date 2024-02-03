@@ -11,41 +11,13 @@ provider:
   # AWS provider configuration
   name: aws
   runtime: python3.11
-  iam:
-    # IAM role permissions
-    role:
-      statements:
-        # Permissions for DynamoDB operations
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-          Resource:
-            - Fn::GetAtt: [ CandidateFitAnalysisDb, Arn ]
-  
-        # Permissions for S3 operations
-        - Effect: Allow
-          Action:
-            - s3:PutObject
-            - s3:GetObject
-            - s3:DeleteObject
-          Resource:
-            - Fn::Join:
-              - ''
-              - - Fn::GetAtt: [ TransientS3Bucket, Arn ]
-                - '/*'
-        
-        # Permissions for SQS operations
-        - Effect: Allow
-          Action:
-            - sqs:SendMessage
-            - sqs:ReceiveMessage
-            - sqs:GetQueueUrl
-          Resource:
-          - Fn::GetAtt: [ QueryProcessingSQS, Arn ]
+  iamRoleStatements:
+    # Permissions for DynamoDB operations
+    - ${file(iamRole/JobTableIAM.yml):JobTableIAM}
+    # Permissions for S3 operations
+    - ${file(iamRole/TransientBucketIAM.yml):TransientBucketIAM}
+    # Permissions for SQS operations
+    - ${file(iamRole/QueryProcessingQueueIAM.yml):QueryProcessingQueueIAM}
 
 functions:
   # HTTP API endpoint
@@ -60,37 +32,21 @@ functions:
     events:
       - sqs:
           arn:
-            Fn::GetAtt: [ QueryProcessingSQS, Arn ]
-          batchSize: 1  
+            Fn::GetAtt: [ QueryProcessingQueue, Arn ]
+          batchSize: 1
+    environment:
+      OPENAI_API_KEY: ${env:OPENAI_API_KEY}  
 
 resources:
   Resources:
     # DynamoDB table for storing candidate fit analysis data
-    CandidateFitAnalysisDb:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: job
-        AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
-        KeySchema:
-          - AttributeName: id
-            KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+    JobTable: ${file(AWSResources/JobTable.yml):JobTable}
 
     # S3 bucket for storing transient data
-    TransientS3Bucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: cv-transient-data
+    TransientBucket: ${file(AWSResources/TransientBucket.yml):TransientBucket}
     
     # SQS queue for processing GPT queries
-    QueryProcessingSQS:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: ChatGPTProcessQueue
+    QueryProcessingQueue: ${file(AWSResources/QueryProcessingQueue.yml):QueryProcessingQueue}
 
 # Serverless plugins
 plugins:

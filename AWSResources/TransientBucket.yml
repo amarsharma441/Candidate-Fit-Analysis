@@ -1,0 +1,9 @@
+TransientBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: cv-transient-data
+        LifecycleConfiguration:
+          Rules:
+            - Id: DeleteOldObjectsRule
+              Status: Enabled
+              ExpirationInDays: 1

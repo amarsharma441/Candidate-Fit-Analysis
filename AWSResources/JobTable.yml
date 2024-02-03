@@ -1,0 +1,16 @@
+JobTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: job
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TimeToLiveSpecification:
+          AttributeName: timeToLive
+          Enabled: true

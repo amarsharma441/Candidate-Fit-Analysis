@@ -1,0 +1,4 @@
+QueryProcessingQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ChatGPTProcessQueue
