@@ -32,6 +32,8 @@ Candidate Fit Analysis is a serverless application built on AWS to perform analy
     > Uses AWS Lambda for serverless execution.
     > Implements a time-to-live mechanism for result availability.
 
+![](https://github.com/amarsharma441/Candidate-Fit-Analysis/blob/main/Assets/template-designer.png)
+
 ## Deployment
 * Ensure you have the Serverless Framework installed.
 * Configure your AWS credentials.
