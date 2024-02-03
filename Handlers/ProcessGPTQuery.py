@@ -6,6 +6,7 @@ from flask import Flask, Blueprint, jsonify
 from boto3.dynamodb.conditions import Key
 from Utils.UtilFunctions import getChatGPTResponse
 import json
+from datetime import datetime, timedelta
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource('dynamodb')
@@ -54,12 +55,16 @@ def processQuery(event, context):
         os.remove(localResponseFilePath)
 
         # Update job status and result S3 path in DynamoDB
+        # Result will not be availeble for more than 1 day
+        expirationTime = datetime.utcnow() + timedelta(days=1)
+        expirationTimestamp = int(expirationTime.timestamp()) 
         jobTable.update_item(
             Key={'id': messageBody['jobId']},
-            UpdateExpression='SET resultS3Path = :path, #status = :status',
-            ExpressionAttributeValues={':path': s3ResultPath, ':status': 'completed'},
-            ExpressionAttributeNames={'#status': 'status'}
+            UpdateExpression='SET resultS3Path = :path, #status = :status, #timeToLive = :timeToLive',
+            ExpressionAttributeValues={':path': s3ResultPath, ':status': 'completed', ':timeToLive': expirationTimestamp},
+            ExpressionAttributeNames={'#status': 'status', '#timeToLive':'timeToLive'}
         )
+
     except Exception as e:
         # TODO: Handle the error or move the message to a dead-letter queue
         print(f"Todo: Handle the error or move the message to a dead-letter queue: {e}")
