@@ -56,15 +56,15 @@ def candidateFitAnalysis():
         chatGPTQuery = createCandidateFitAnalysisQuery(str(candidateCV1), str(jobDescription))
         
     # Save the ChatGPT query to a local file
-    with open('chatGPTQueryFile.txt', 'w', encoding='utf-8') as chatGPTQueryFile:
+    with open('/tmp/chatGPTQueryFile.txt', 'w', encoding='utf-8') as chatGPTQueryFile:
         chatGPTQueryFile.write(chatGPTQuery)
 
     # Save the file to S3
     s3Key = f"ChatGPTQueries/{s3FileName}"
-    s3Client.upload_file('chatGPTQueryFile.txt', s3Bucket, s3Key)
+    s3Client.upload_file('/tmp/chatGPTQueryFile.txt', s3Bucket, s3Key)
 
     # Remove the temporary local file
-    os.remove('chatGPTQueryFile.txt')
+    os.remove('/tmp/chatGPTQueryFile.txt')
 
     # SQS message containing job details
     sqsMessage = {
