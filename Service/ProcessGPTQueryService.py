@@ -1,29 +1,36 @@
 import boto3
 import os
-from boto3.dynamodb.conditions import Key
-from Utils.UtilFunctions import getChatGPTResponse
 import json
 from datetime import datetime, timedelta
+from boto3.dynamodb.conditions import Key
+from Utils.UtilFunctions import getChatGPTResponse
 
-# Initialize DynamoDB client
+# Initialize AWS clients
 dynamodb = boto3.resource('dynamodb')
 jobTable = dynamodb.Table('job')
 
-# Initialize S3 client
 s3Client = boto3.client('s3')
 s3Bucket = 'cv-transient-data'
 
-# Initialize SQS client
 sqsClient = boto3.client('sqs')
 sqsQueueName = 'ChatGPTProcessQueue'
 
-
 def processQuery(event, context):
+    """
+    Processes an SQS event to handle ChatGPT query execution and result storage.
+
+    Args:
+        event (dict): The SQS event containing the message body.
+        context: AWS Lambda context object (not used in this function).
+
+    Returns:
+        dict: A response dictionary with a status code and message.
+    """
     # Extract message body from the SQS event
     messageBody = json.loads(event['Records'][0]['body'])
 
     try:
-        # Extract S3 key and download the ChatGPT query file
+        # Extract S3 key from the message and download the ChatGPT query file
         s3Key = messageBody['chatGPTQueryS3Path'].split(f'{s3Bucket}/')[1]
         localFilePath = '/tmp/chatGPTQueryFile.txt'
         s3Client.download_file(s3Bucket, s3Key, localFilePath)
@@ -40,7 +47,7 @@ def processQuery(event, context):
         with open(localResponseFilePath, 'w', encoding='utf-8') as chatGPTResponseFile:
             chatGPTResponseFile.write(chatGPTResponse)
 
-        # Save the file to S3
+        # Save the response file to S3
         jobId = messageBody['jobId']
         s3FileName = f"{jobId}_chatGPTResponse.txt"
         s3Key = f"ChatGPTResponses/{s3FileName}"
@@ -51,15 +58,23 @@ def processQuery(event, context):
         os.remove(localFilePath)
         os.remove(localResponseFilePath)
 
-        # Update job status and result S3 path in DynamoDB
-        # Result will not be availeble for more than 1 day
+        # Set the expiration time for the result (1 day)
         expirationTime = datetime.utcnow() + timedelta(days=1)
-        expirationTimestamp = int(expirationTime.timestamp()) 
+        expirationTimestamp = int(expirationTime.timestamp())
+
+        # Update job status and result S3 path in DynamoDB
         jobTable.update_item(
-            Key={'id': messageBody['jobId']},
+            Key={'id': jobId},
             UpdateExpression='SET resultS3Path = :path, #status = :status, #timeToLive = :timeToLive',
-            ExpressionAttributeValues={':path': s3ResultPath, ':status': 'completed', ':timeToLive': expirationTimestamp},
-            ExpressionAttributeNames={'#status': 'status', '#timeToLive':'timeToLive'}
+            ExpressionAttributeValues={
+                ':path': s3ResultPath,
+                ':status': 'completed',
+                ':timeToLive': expirationTimestamp
+            },
+            ExpressionAttributeNames={
+                '#status': 'status',
+                '#timeToLive': 'timeToLive'
+            }
         )
 
     except Exception as e:

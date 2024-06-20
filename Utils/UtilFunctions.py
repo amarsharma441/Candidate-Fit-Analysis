@@ -1,11 +1,8 @@
-import boto3
-import base64
-import uuid
 import os
-import PyPDF2
-from flask import Flask, Blueprint, request, jsonify
-from boto3.dynamodb.conditions import Key
 import json
+import boto3
+import PyPDF2
+from boto3.dynamodb.conditions import Key
 from openai import OpenAI
 
 # Initialize AWS clients
@@ -17,6 +14,16 @@ sqsClient = boto3.client('sqs')  # SQS client
 sqsQueueName = 'ChatGPTProcessQueue'  # SQS queue name
 
 def fetchChatGPTResponseByJobId(jobId):
+    """
+    Fetch ChatGPT response by job ID from DynamoDB and S3.
+    
+    Args:
+        jobId (str): The job ID to fetch the response for.
+    
+    Returns:
+        dict: A dictionary containing the status code and response body.
+    """
+    localFilePath = '/tmp/chatGPTResFile.txt'
     try:
         # Retrieve resultS3Path from DynamoDB
         response = jobTable.get_item(
@@ -34,8 +41,6 @@ def fetchChatGPTResponseByJobId(jobId):
 
         # Extract S3 key
         s3Key = resultS3Path.split(f'{s3Bucket}/')[1]
-
-        localFilePath = '/tmp/chatGPTResFile.txt'
 
         # Download file from S3
         s3Client.download_file(s3Bucket, s3Key, localFilePath)
@@ -55,57 +60,87 @@ def fetchChatGPTResponseByJobId(jobId):
         }
     finally:
         # Remove the temporary local file
-        os.remove(localFilePath)
+        if os.path.exists(localFilePath):
+            os.remove(localFilePath)
 
 
 def createCandidateFitAnalysisQuery(candidateCV, jobDescription):
-    # Strings for formatting the query
+    """
+    Create a query for candidate fit analysis based on the CV and job description.
+    
+    Args:
+        candidateCV (str): The candidate's CV text.
+        jobDescription (str): The job description text.
+    
+    Returns:
+        str: The formatted query for fit analysis.
+    """
     startCandidateCV = "\nSTART CANDIDATE CV\n"
     endCandidateCV = "\nEND CANDIDATE CV\n"
     startJobDescription = "\nSTART JOB DESCRIPTION\n"
     endJobDescription = "\nEND JOB DESCRIPTION\n"
-
-    # Question for fit analysis
     fitAnalysisQuestion = "Is this candidate fit for the job description mentioned above? Provide detailed analysis"
     
-    # Construct the query
-    return startCandidateCV + str(candidateCV) + endCandidateCV + startJobDescription + str(jobDescription) + endJobDescription + fitAnalysisQuestion
+    return f"{startCandidateCV}{candidateCV}{endCandidateCV}{startJobDescription}{jobDescription}{endJobDescription}{fitAnalysisQuestion}"
+
 
 def createCandidateCompareAnalysisQuery(candidateCV1, candidateCV2, jobDescription):
-    # Strings for formatting the query
+    """
+    Create a query for comparing two candidates against a job description.
+    
+    Args:
+        candidateCV1 (str): The first candidate's CV text.
+        candidateCV2 (str): The second candidate's CV text.
+        jobDescription (str): The job description text.
+    
+    Returns:
+        str: The formatted query for candidate comparison.
+    """
     startCandidateCV = "\nSTART {candidate} CANDIDATE CV\n"
     endCandidateCV = "\nEND {candidate} CANDIDATE CV\n"
     startJobDescription = "\nSTART JOB DESCRIPTION\n"
     endJobDescription = "\nEND JOB DESCRIPTION\n"
-
-    # Question for compare analysis
     candidateCompareAnalysisQuestion = "Compare candidates against the provided job description. Provide detailed analysis"
-
-    # Construct the query for both candidates
-    candidate1 = startCandidateCV.format(candidate="1st") + str(candidateCV1) + endCandidateCV.format(candidate="1st")
-    candidate2 = startCandidateCV.format(candidate="2nd") + str(candidateCV2) + endCandidateCV.format(candidate="2nd")
-
-    # Combine the queries
-    return candidate1 + candidate2 + startJobDescription + str(jobDescription) + endJobDescription + candidateCompareAnalysisQuestion
+    
+    candidate1 = startCandidateCV.format(candidate="1st") + candidateCV1 + endCandidateCV.format(candidate="1st")
+    candidate2 = startCandidateCV.format(candidate="2nd") + candidateCV2 + endCandidateCV.format(candidate="2nd")
+    
+    return f"{candidate1}{candidate2}{startJobDescription}{jobDescription}{endJobDescription}{candidateCompareAnalysisQuestion}"
 
 
 def getChatGPTResponse(queryText):
-    # Initialize OpenAI
+    """
+    Get a response from OpenAI's ChatGPT based on the provided query text.
+    
+    Args:
+        queryText (str): The query text to send to ChatGPT.
+    
+    Returns:
+        dict: The response from ChatGPT.
+    """
     openAIClient = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-    response = client.chat.completions.create(
-    messages=[
+    response = openAIClient.Completion.create(
+        messages=[
             {
                 "role": "user",
-                "content": f"{queryText}",
+                "content": queryText,
             }
         ],
-        model="gpt-3.5",
+        model="gpt-3.5-turbo",
     )
     return response
 
 
 def extractTextFromPDF(pdfFile):
-    # Extract text from a PDF file
+    """
+    Extract text from a PDF file.
+    
+    Args:
+        pdfFile (file-like object): The PDF file to extract text from.
+    
+    Returns:
+        str: The extracted text from the PDF.
+    """
     pdfReader = PyPDF2.PdfReader(pdfFile)
     text = ''
     for pageNumber in range(len(pdfReader.pages)):
