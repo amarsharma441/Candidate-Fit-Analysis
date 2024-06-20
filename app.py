@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, make_response
-from Handlers.CandidateFit import candidateFit
+from Controller.CandidateFitController import candidateFitController
 
 app = Flask(__name__)
 
@@ -7,7 +7,7 @@ app = Flask(__name__)
 def hello_from_app():
     return jsonify(message='Hello from Candidate Fit Analysis App!')
 
-app.register_blueprint(candidateFit, url_prefix='/candidateFit')
+app.register_blueprint(candidateFitController, url_prefix='/candidateFit')
 
 @app.errorhandler(404)
 def resource_not_found(e):

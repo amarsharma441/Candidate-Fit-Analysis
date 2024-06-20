@@ -1,8 +1,5 @@
 import boto3
-import uuid
 import os
-import PyPDF2
-from flask import Flask, Blueprint, jsonify
 from boto3.dynamodb.conditions import Key
 from Utils.UtilFunctions import getChatGPTResponse
 import json

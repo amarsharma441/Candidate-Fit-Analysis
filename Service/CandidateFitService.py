@@ -3,7 +3,6 @@ import base64
 import uuid
 import os
 import PyPDF2
-from flask import Flask, Blueprint, request, jsonify, make_response
 from boto3.dynamodb.conditions import Key
 from Utils.UtilFunctions import fetchChatGPTResponseByJobId, createCandidateFitAnalysisQuery, extractTextFromPDF, createCandidateCompareAnalysisQuery
 import json
@@ -20,25 +19,13 @@ s3Bucket = 'cv-transient-data'
 sqsClient = boto3.client('sqs')
 sqsQueueName = 'ChatGPTProcessQueue'
 
-# Blueprint for candidate fit analysis
-candidateFit = Blueprint('candidateFit', __name__)
-
-@candidateFit.route("/analysis", methods=['POST'])
-def candidateFitAnalysis():
-    # Get reqForCandidateCompare from query parameters
-    reqForCandidateCompare = request.args.get('reqForCandidateCompare')
-    if not reqForCandidateCompare:
-        # Return an error if reqForCandidateCompare is missing in the query parameters
-        return jsonify({'error': 'reqForCandidateCompare is missing in the query parameters'}), 400
+def candidateFitAnalysis(reqForCandidateCompare, candidateCV1, candidateCV2, jobDescription):
     reqForCandidateCompare = reqForCandidateCompare.lower() == 'True'.lower()
 
     # Extract text from candidate CV(s)
-    candidateCV1 = extractTextFromPDF(request.files['candidateCV1'])
-    if reqForCandidateCompare == True:
-        candidateCV2 = extractTextFromPDF(request.files['candidateCV2'])
-
-    # Read job description file
-    jobDescription = request.files["jobDescription"].read()
+    candidateCV1 = extractTextFromPDF(candidateCV1)
+    if reqForCandidateCompare:
+        candidateCV2 = extractTextFromPDF(candidateCV2)
 
     # Generate a unique job ID
     jobId = str(uuid.uuid4())
@@ -50,8 +37,8 @@ def candidateFitAnalysis():
     s3FileName = f"{jobId}_Query.txt"
 
     # Create a ChatGPT query
-    if reqForCandidateCompare == True:
-        chatGPTQuery = createCandidateCompareAnalysisQuery(str(candidateCV1), str(candidateCV2) , str(jobDescription))
+    if reqForCandidateCompare:
+        chatGPTQuery = createCandidateCompareAnalysisQuery(str(candidateCV1), str(candidateCV2), str(jobDescription))
     else:
         chatGPTQuery = createCandidateFitAnalysisQuery(str(candidateCV1), str(jobDescription))
         
@@ -78,23 +65,13 @@ def candidateFitAnalysis():
     # Send the SQS message
     response = sqsClient.send_message(QueueUrl=sqsQueueUrl, MessageBody=json.dumps(sqsMessage))
 
-    return jsonify(message="Job created:" + jobId + " SQS:" + str(response)), 200
+    return {"message": "Job created:" + jobId + " SQS:" + str(response)}
 
-
-@candidateFit.route("/report")
-def getReport():
-    # Get jobId from query parameters
-    jobId = request.args.get('jobId')
-
+def getReport(jobId):
     if jobId:
-        # Fetch and return ChatGPT response for the given jobId
         return fetchChatGPTResponseByJobId(jobId)
     else:
-        # Return an error if jobId is missing in the query parameters
-        return jsonify({'error': 'Job ID is missing in the query parameters'}), 400
+        return {'error': 'Job ID is missing in the query parameters'}
 
-
-@candidateFit.errorhandler(404)
 def resourceNotFound(e):
-    # Custom error handler for 404 Not Found
-    return make_response(jsonify(error='Not found!'), 404)
+    return {'error': 'Not found!'}
